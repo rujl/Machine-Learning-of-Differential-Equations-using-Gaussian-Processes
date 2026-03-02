@@ -22,11 +22,14 @@ noise = 1e-8
 
 # Kernels
 
-def rbf_kernel(x1, x2, length_scale, sigma2):
-    dists = np.subtract.outer(x1[:,0], x2[:,0])**2
-    return sigma2 * np.exp(-0.5 * dists / length_scale**2)
+def rbf_kernel(X1, X2, lengthscale=1.0, sigma_f=1.0):
+    X1 = np.atleast_2d(X1)
+    X2 = np.atleast_2d(X2)
+    # pairwise squared distances
+    sqdist = np.sum(X1**2, axis=1)[:, None] + np.sum(X2**2, axis=1)[None, :] - 2 * (X1 @ X2.T)
+    return (sigma_f**2) * np.exp(-0.5 * sqdist / (lengthscale**2))
 
-def brownian_kernel(x1, x2, sigma2):
+def brownian_kernel(x1, x2, sigma2=1.0):
     return sigma2 * np.minimum.outer(x1[:,0], x2[:,0])
 
 def matern32_kernel(x1, x2, length_scale, sigma2):
