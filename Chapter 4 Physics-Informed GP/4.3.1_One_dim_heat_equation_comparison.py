@@ -1,11 +1,10 @@
+import sympy as sp
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.linalg
 
-# COMPARISON
-# -----------------------------------
-# 1. Symbolic kernel 
-# -----------------------------------
+# ------------------------------------------------------------
+# 1. Symbolic kernel
+# ------------------------------------------------------------
 w, alpha = sp.symbols('w alpha')
 x, y = sp.symbols('x y')
 
@@ -31,9 +30,9 @@ def block_kernel(Xa, Xb, row_idx, col_idx, alpha_val, w_val):
             K[i, j] = K2[row_idx, col_idx]
     return K
 
-# -------------------------------------
+# ------------------------------------------------------------
 # 2. Parameters and boundary data
-# -------------------------------------
+# ------------------------------------------------------------
 alpha_val = 1/(4*np.pi**2)
 w_val = 25
 eps = 1e-12
@@ -106,7 +105,7 @@ def gp_posterior_u(X_u, y_u, X_f, y_f,
     return posterior
 
 # ------------------------------------------------------------
-# 4. Max error vs exact solution sin(2πx)
+# 4. Helper: max error vs exact solution sin(2πx)
 # ------------------------------------------------------------
 def gp_max_error(X_u, y_u, X_f, y_f):
     post = gp_posterior_u(X_u, y_u, X_f, y_f)
@@ -116,7 +115,7 @@ def gp_max_error(X_u, y_u, X_f, y_f):
     return np.max(np.abs(u_mean - u_exact))
 
 # ------------------------------------------------------------
-# 5. Select f-points by maximal posterior variance
+# 5. Helper: select f-points by maximal posterior variance
 # ------------------------------------------------------------
 def select_f_by_variance(n_f_target, X_u, y_u):
     X_f = np.array([])  # start with no f points
@@ -142,6 +141,35 @@ def select_f_by_variance(n_f_target, X_u, y_u):
     return X_f, y_f
 
 # ------------------------------------------------------------
+# Helper: condition number of K_tilde
+# ------------------------------------------------------------
+def gp_condition_number(X_u, X_f,
+                        alpha_val=alpha_val, w_val=w_val, eps=eps):
+
+    n_u = len(X_u)
+    n_f = len(X_f)
+    N = n_u + n_f
+
+    if n_u > 0 and n_f > 0:
+        K_uu = block_kernel(X_u, X_u, 0, 0, alpha_val, w_val)
+        K_uf = block_kernel(X_u, X_f, 0, 1, alpha_val, w_val)
+        K_fu = block_kernel(X_f, X_u, 1, 0, alpha_val, w_val)
+        K_ff = block_kernel(X_f, X_f, 1, 1, alpha_val, w_val)
+
+        K_xx = np.vstack([
+            np.hstack([K_uu, K_uf]),
+            np.hstack([K_fu, K_ff])
+        ])
+
+    elif n_u > 0:
+        K_xx = block_kernel(X_u, X_u, 0, 0, alpha_val, w_val)
+    else:
+        K_xx = block_kernel(X_f, X_f, 1, 1, alpha_val, w_val)
+
+    K_tilde = K_xx + eps * np.eye(N)
+
+    return np.linalg.cond(K_tilde)
+# ------------------------------------------------------------
 # 6. Compare strategies over multiple n_f
 # ------------------------------------------------------------
 rng = np.random.default_rng(0)
@@ -151,27 +179,41 @@ err_var = []
 err_even = []
 err_rand = []
 
+cond_var = []
+cond_even = []
+cond_rand = []
+
 for n_f in n_f_values:
     # variance-based points
     X_f_var, y_f_var = select_f_by_variance(n_f, X_u, y_u)
     e_var = gp_max_error(X_u, y_u, X_f_var, y_f_var)
+    c_var = gp_condition_number(X_u, X_f_var)
 
     # evenly spaced points
     X_f_even = np.linspace(0, 1, n_f+2)[1:-1]
     y_f_even = np.sin(2*np.pi*X_f_even)
     e_even = gp_max_error(X_u, y_u, X_f_even, y_f_even)
+    c_even = gp_condition_number(X_u, X_f_even)
 
     # random points
     X_f_rand = rng.random(n_f)
     y_f_rand = np.sin(2*np.pi*X_f_rand)
     e_rand = gp_max_error(X_u, y_u, X_f_rand, y_f_rand)
+    c_rand = gp_condition_number(X_u, X_f_rand)
 
     err_var.append(e_var)
     err_even.append(e_even)
     err_rand.append(e_rand)
 
-    print(f"n_f={n_f:2d} | var={e_var:.2e}, even={e_even:.2e}, rand={e_rand:.2e}")
+    cond_var.append(c_var)
+    cond_even.append(c_even)
+    cond_rand.append(c_rand)
 
+    print(
+        f"n_f={n_f:2d} | "
+        f"err(var,even,rand)=({e_var:.1e},{e_even:.1e},{e_rand:.1e}) | "
+        f"cond(var,even,rand)=({c_var:.1e},{c_even:.1e},{c_rand:.1e})"
+    )
 # ------------------------------------------------------------
 # 7. Plot comparison (semilog-y)
 # ------------------------------------------------------------
@@ -186,3 +228,19 @@ plt.title('Error vs number of f points for different placement strategies')
 plt.legend()
 plt.tight_layout()
 plt.show()
+
+# ------------------------------------------------------------
+# 8. Plot condition number vs n_f
+# ------------------------------------------------------------
+plt.figure(figsize=(8, 4))
+plt.plot(n_f_values, cond_var,  '-o', label='Max-variance f points')
+plt.plot(n_f_values, cond_even, '-s', label='Evenly spaced f points')
+plt.plot(n_f_values, cond_rand, '-^', label='Random f points')
+
+plt.xlabel('Number of f points (n_f)')
+plt.ylabel('Condition number of K_tilde (log scale)')
+plt.title('Condition number vs number of f points')
+plt.legend()
+plt.tight_layout()
+plt.show()
+
