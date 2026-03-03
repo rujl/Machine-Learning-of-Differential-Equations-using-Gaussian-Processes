@@ -4,7 +4,7 @@ import scipy.linalg
 import matplotlib.pyplot as plt 
 
 from heat_equation import u_exact, f
-
+# ERROR AND STANDARD DEVIATION FOR u AND f POINTS
 # -----------------------------
 # Generate training data
 # -----------------------------
@@ -197,7 +197,7 @@ F_err = np.abs(F_mean - f(T, X))
 # ------------------------------------------------- 
 fig, axes = plt.subplots(2, 2, figsize=(10, 8)) 
 
-# (C) Error in u 
+# (A) Error in u 
 cs = axes[0,0].contourf(X, T, U_err, levels=40, cmap='cool') 
 axes[0,0].contour(X, T, U_err, levels=20, colors='k', linewidths=0.3) 
 axes[0,0].scatter(xu, tu, marker='s', facecolors='none', edgecolors='k') 
@@ -205,7 +205,7 @@ axes[0,0].scatter(xf, tf, marker='o', facecolors='none', edgecolors='k')
 axes[0,0].set_title(r'(A) Error $|\bar u(t,x)-u(t,x)|$') 
 fig.colorbar(cs, ax=axes[0,0]) 
 
-# (D) Error in f 
+# (B) Error in f 
 cs = axes[0,1].contourf(X, T, F_err, levels=40, cmap='cool') 
 axes[0,1].contour(X, T, F_err, levels=20, colors='k', linewidths=0.3) 
 axes[0,1].scatter(xu, tu, marker='s', facecolors='none', edgecolors='k') 
@@ -213,7 +213,7 @@ axes[0,1].scatter(xf, tf, marker='o', facecolors='none', edgecolors='k')
 axes[0,1].set_title(r'(B) Error $|\bar f(t,x)-f(t,x)|$') 
 fig.colorbar(cs, ax=axes[0,1]) 
 
-# (E) Std for u 
+# (C) Std for u 
 cs = axes[1,0].contourf(X, T, U_std, levels=40, cmap='cool') 
 axes[1,0].contour(X, T, U_std, levels=20, colors='k', linewidths=0.3) 
 axes[1,0].scatter(xu, tu, marker='s', facecolors='none', edgecolors='k') 
@@ -221,7 +221,7 @@ axes[1,0].scatter(xf, tf, marker='o', facecolors='none', edgecolors='k')
 axes[1,0].set_title(r'(C) Standard deviation for $u$') 
 fig.colorbar(cs, ax=axes[1,0]) 
 
-# (F) Std for f 
+# (D) Std for f 
 cs = axes[1,1].contourf(X, T, F_std, levels=40, cmap='cool') 
 axes[1,1].contour(X, T, F_std, levels=20, colors='k', linewidths=0.3) 
 axes[1,1].scatter(xu, tu, marker='s', facecolors='none', edgecolors='k') 
