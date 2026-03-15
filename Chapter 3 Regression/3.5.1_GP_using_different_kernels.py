@@ -61,17 +61,6 @@ for i, (name, kernel) in enumerate(kernels.items(), 1):
     std = np.sqrt(var).ravel()
 
     plt.subplot(3, 1, i)
-<<<<<<< HEAD
-    plt.plot(X_test, y_true, 'k--', label='True function')
-    plt.plot(X_train, y_train, 'ro', label='Train points')
-    plt.plot(X_test, mu, 'b', label='GP mean')
-    plt.fill_between(X_test[:,0], mu - 1.96*std, mu + 1.96*std, alpha=0.2, label='95% CI')
-
-    plt.xlabel('x')
-    plt.ylabel('f(x)')
-    
-    plt.title(f'GP Regression with {name} Kernel')
-=======
     plt.plot(X_test[:, 0], y_true[:, 0], 'k--', label='True function')
     plt.plot(X_train[:, 0], y_train[:, 0], 'o', color='red', label='Train points')
     plt.plot(X_test[:, 0], mu, color='orange', linewidth=2, label='GP mean')
@@ -84,7 +73,6 @@ for i, (name, kernel) in enumerate(kernels.items(), 1):
     )
     #plt.title(f'GP Regression with {name} Kernel')
     plt.savefig(f"{name}.eps", format="eps", bbox_inches="tight")
->>>>>>> c6dbdcb139b545af42e5376530082dbe4d715a68
     plt.legend()
     plt.grid(False)
 

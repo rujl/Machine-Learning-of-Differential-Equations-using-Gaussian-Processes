@@ -36,8 +36,12 @@ for d in dims:
 
 plt.figure(figsize=(6,4))
 plt.plot(dims, errors_slice, marker='o')
-plt.title("GP Regression Error vs Dimension")
+
 plt.xlabel("Input dimension (d)")
 plt.ylabel("Mean Absolute Error on Slice")
+
+plt.yscale('log')   # log scale for error axis
+plt.savefig("GP_Regression_Error_vs_Dimension.eps", bbox_inches="tight")
+
 plt.grid(False)
 plt.show()
