@@ -1,6 +1,6 @@
 # Machine Learning of Differential Equations using Gaussian Processes
 
-This project explores how Gaussian Processes (GPs) can be used to solve and analyze differential equations, including regression, kernel design, and physics-informed learning.
+This project explores how Gaussian Processes (GPs) can be used to solve and analyze linear differential equations, including regression, kernel design, and physics-informed learning.
 
 ## Project Structure
 

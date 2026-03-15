@@ -1,0 +1,243 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy.linalg as la
+
+def f(x): # forcing term f(x) in the PDE
+    x = np.asarray(x, dtype=float)
+    return np.sin(2.0 * np.pi * x)
+
+def u_true(x, theta): # exact solution
+    x = np.asarray(x, dtype=float)
+    theta = np.asarray(theta, dtype=float)
+    return np.sin(2.0 * np.pi * x) / (4.0 * np.pi**2 * theta)
+
+# 5 x training points
+x_train = np.linspace(0.1, 0.9, 5)
+
+# 5 theta training points
+theta_train = np.array([0.15, 0.35, 0.70, 1.20, 1.80])
+
+# PDE observations for method 3
+x_f_train = np.linspace(0.05, 0.95, 100)
+
+# test grid in x
+x_test = np.linspace(0.0, 1.0, 400)
+
+# theta grid 
+theta_grid = np.linspace(0.1, 2.0, 160)
+theta_test = np.array([th for th in theta_grid if np.min(np.abs(theta_train - th)) > 1e-12])
+
+# hyperparameters
+sigma2_u = 1.0
+ell_x = 0.20
+ell_theta = 0.55
+noise = 1e-8
+
+# squared exponential kernel 1d
+def rbf_1d(a, b, ell, sigma2=1.0):
+    a = np.atleast_1d(a).astype(float)
+    b = np.atleast_1d(b).astype(float)
+    r = a[:, None] - b[None, :]
+    return sigma2 * np.exp(-0.5 * (r / ell)**2)
+
+# theta kernel
+def k_theta(th1, th2):
+    return rbf_1d(th1, th2, ell_theta, sigma2=1.0)
+
+#x kernel
+def k_x(x1, x2):
+    return rbf_1d(x1, x2, ell_x, sigma2=sigma2_u)
+
+# derivatives
+def d2_rbf_x(x, xp, ell, sigma2=1.0):
+    x = np.atleast_1d(x).astype(float)
+    xp = np.atleast_1d(xp).astype(float)
+    r = x[:, None] - xp[None, :]
+    base = sigma2 * np.exp(-0.5 * (r / ell)**2)
+    return ((r**2 / ell**4) - (1.0 / ell**2)) * base
+
+def d4_rbf_x(x, xp, ell, sigma2=1.0):
+    x = np.atleast_1d(x).astype(float)
+    xp = np.atleast_1d(xp).astype(float)
+    r = x[:, None] - xp[None, :]
+    base = sigma2 * np.exp(-0.5 * (r / ell)**2)
+    return ((r**4 / ell**8) - (6.0 * r**2 / ell**6) + (3.0 / ell**4)) * base
+
+
+# u observations: 5 x 5 = 25
+X_u_int = np.repeat(x_train, len(theta_train))
+TH_u_int = np.tile(theta_train, len(x_train))
+Y_u_int = u_true(X_u_int, TH_u_int) # evaluate exact solution at 25 training pairs (xi, thetaj)
+
+# builds 5x5 matrix with (i,j) entry u(xi, thetaj)
+U_train = u_true(x_train[:, None], theta_train[None, :]) # 5x5
+
+# boundary conditions: 2 x 5 = 10 
+X_u_bdy = np.array([0.0] * len(theta_train) + [1.0] * len(theta_train)) # make 5 copies o 0 and 1
+TH_u_bdy = np.concatenate([theta_train, theta_train]) # associate each boundary point with the theta training points
+Y_u_bdy = np.zeros_like(X_u_bdy) # set them equal to 0
+
+# PDE observations o f: n_f=15, 15 x 5 = 75
+X_f_int = np.repeat(x_f_train, len(theta_train))
+TH_f_int = np.tile(theta_train, len(x_f_train))
+Y_f_int = f(X_f_int)
+
+
+# METHOD 1
+Kth_m1 = k_theta(theta_train, theta_train) + noise * np.eye(len(theta_train)) # form 5x5 covariance matrix and add small noise
+cho_m1 = la.cho_factor(Kth_m1, lower=True) # cholesky factorisation
+
+# method 1 prediction function for a new parameter value theta*
+def method1_predict(theta_star, x_eval):
+    x_eval = np.asarray(x_eval, dtype=float)
+
+    # computes covariance vector between training theta and new parameter
+    ks = k_theta(theta_train, np.array([theta_star]))  # shape (5,1)
+    pred_at_xtrain = np.zeros(len(x_train))
+    # loop over each x_i
+    for i in range(len(x_train)):
+        y_i = U_train[i, :] # extract the 5 u(xi, thetaj)
+        pred_at_xtrain[i] = (ks.T @ la.cho_solve(cho_m1, y_i)).item() # solve GP using Cholesky
+
+    # boundary points
+    x_aug = np.concatenate(([0.0], x_train, [1.0]))
+    y_aug = np.concatenate(([0.0], pred_at_xtrain, [0.0]))
+
+    return np.interp(x_eval, x_aug, y_aug)
+
+# METHOD 2
+
+# define seperable covariance
+def k_uu_sep(X1, TH1, X2, TH2):
+    return k_x(X1, X2) * k_theta(TH1, TH2)
+
+# method 2 training: interior + boundary u observations (25 + 10 = 35)
+X_u_train_m2 = np.concatenate([X_u_int, X_u_bdy])
+TH_u_train_m2 = np.concatenate([TH_u_int, TH_u_bdy])
+Y_u_train_m2 = np.concatenate([Y_u_int, Y_u_bdy])
+
+K_m2 = k_uu_sep(X_u_train_m2, TH_u_train_m2, X_u_train_m2, TH_u_train_m2) # builds full covariance matrix for all training observation
+K_m2 += noise * np.eye(len(Y_u_train_m2)) # add noise
+cho_m2 = la.cho_factor(K_m2, lower=True) # cholesky factorisation
+
+# predict u(x, theta*) using method 2
+def method2_predict(theta_star, x_eval):
+    x_eval = np.asarray(x_eval, dtype=float)
+    th_eval = theta_star * np.ones_like(x_eval)
+
+    Ks = k_uu_sep(x_eval, th_eval, X_u_train_m2, TH_u_train_m2) # computes covariance between test points and training points
+    return Ks @ la.cho_solve(cho_m2, Y_u_train_m2) # cholesky and multiplication to give posterior mean
+
+# METHOD 3
+
+# different covariance functions with the linear operator
+def k_uu(X1, TH1, X2, TH2):
+    return k_x(X1, X2) * k_theta(TH1, TH2)
+
+def k_uf(X1, TH1, X2, TH2):
+    return -d2_rbf_x(X1, X2, ell_x, sigma2=sigma2_u) * (TH2[None, :]) * k_theta(TH1, TH2)
+
+def k_fu(X1, TH1, X2, TH2):
+    return -(TH1[:, None]) * d2_rbf_x(X1, X2, ell_x, sigma2=sigma2_u) * k_theta(TH1, TH2)
+
+def k_ff(X1, TH1, X2, TH2):
+    return (TH1[:, None] * TH2[None, :]) * d4_rbf_x(X1, X2, ell_x, sigma2=sigma2_u) * k_theta(TH1, TH2)
+
+# boundary for u
+X_b = X_u_bdy.copy()
+TH_b = TH_u_bdy.copy()
+Y_b = Y_u_bdy.copy()
+
+# PDE observations for f
+X_f = X_f_int.copy()
+TH_f = TH_f_int.copy()
+Y_f = Y_f_int.copy()
+
+# build the 4 covariance blocks
+K_bb = k_uu(X_b, TH_b, X_b, TH_b)
+K_bf = k_uf(X_b, TH_b, X_f, TH_f)
+K_fb = k_fu(X_f, TH_f, X_b, TH_b)
+K_ff_block = k_ff(X_f, TH_f, X_f, TH_f)
+
+# assemble the full covariance matrix and add some noise
+K_m3 = np.block([
+    [K_bb,      K_bf],
+    [K_fb, K_ff_block]
+]) + noise * np.eye(len(Y_b) + len(Y_f))
+
+# build full observation vector y by stacking y_u and y_f
+Y_m3 = np.concatenate([Y_b, Y_f])
+cho_m3 = la.cho_factor(K_m3, lower=True) # cholesky factorisation of full block covariance matrix
+
+# predict u(x, theta*) using method 3
+def method3_predict(theta_star, x_eval):
+    x_eval = np.asarray(x_eval, dtype=float)
+    th_eval = theta_star * np.ones_like(x_eval)
+
+    # compute covariance between test u and boundary u
+    Ks_b = k_uu(x_eval, th_eval, X_b, TH_b)
+    # compute covariance between test u and f observations
+    Ks_f = k_uf(x_eval, th_eval, X_f, TH_f)
+    # combine into test training covariance matrix
+    Ks = np.hstack([Ks_b, Ks_f])
+
+    return Ks @ la.cho_solve(cho_m3, Y_m3) # cholesky and return posterior mean
+
+# define L2 error
+def l2_error(u_pred, u_exact, x_grid):
+    return np.sqrt(np.trapz((u_pred - u_exact)**2, x_grid))
+    
+# initialise error arrays for each method
+err_m1 = []
+err_m2 = []
+err_m3 = []
+
+# loop over each unseen theta*
+for th in theta_test:
+    u_ex = u_true(x_test, th) # compute exact solution
+
+    # compute predicted solution for each method at theta*
+    u1 = method1_predict(th, x_test)
+    u2 = method2_predict(th, x_test)
+    u3 = method3_predict(th, x_test)
+
+    # compute L2 error of each method and store
+    err_m1.append(l2_error(u1, u_ex, x_test))
+    err_m2.append(l2_error(u2, u_ex, x_test))
+    err_m3.append(l2_error(u3, u_ex, x_test))
+
+err_m1 = np.array(err_m1)
+err_m2 = np.array(err_m2)
+err_m3 = np.array(err_m3)
+
+# plot for error vs theta
+plt.figure(figsize=(8, 5))
+
+plt.plot(theta_test, err_m1, linewidth=2, label='Method 1')
+plt.plot(theta_test, err_m2, linewidth=2, label='Method 2')
+plt.plot(theta_test, err_m3, linewidth=2, label='Method 3')
+
+# add a vertical line so we can easily see the training thetas
+for th in theta_train:
+    plt.axvline(th, color='gray', linestyle=':')
+
+plt.xlabel(r'$\theta$')
+plt.ylabel(r'$L^2$ error')
+plt.yscale('log') # logscale
+plt.grid(alpha=0.3)
+plt.legend()
+plt.tight_layout()
+plt.savefig('three_methods_err.eps')
+plt.show()
+
+
+print("training x-values")
+print(x_train)
+
+print("training theta-values:")
+print(theta_train)
+
+print("Average L2 error")
+print(f"Method 1: {err_m1.mean():.6e}")
+print(f"Method 2: {err_m2.mean():.6e}")
+print(f"Method 3: {err_m3.mean():.6e}")
