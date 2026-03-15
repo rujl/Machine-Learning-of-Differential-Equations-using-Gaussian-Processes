@@ -71,9 +71,15 @@ for i, (name, kernel) in enumerate(kernels.items(), 1):
     plt.plot(X_train, y_train, 'ro', label='Train points')
     plt.plot(X_test, mu, 'b', label='GP mean')
     plt.fill_between(X_test[:,0], mu - 1.96*std, mu + 1.96*std, alpha=0.2, label='95% CI')
+
+    plt.xlabel('x')
+    plt.ylabel('f(x)')
+    
     plt.title(f'GP Regression with {name} Kernel')
     plt.legend()
     plt.grid(False)
+
+
 
 plt.tight_layout()
 plt.savefig("gp_regression_kernels.png")

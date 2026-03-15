@@ -72,7 +72,7 @@ plt.subplot(1,2,1)
 plt.plot(dims, times, 'o-')
 plt.xlabel('Dimension d')
 plt.ylabel('Computation time (s)')
-plt.title('GP computation time vs dimension')
+plt.yscale('log')  # log scale
 plt.grid(False)
-
+plt.savefig("gp_computation_time_vs_dimension.eps", bbox_inches="tight")
 plt.show()
