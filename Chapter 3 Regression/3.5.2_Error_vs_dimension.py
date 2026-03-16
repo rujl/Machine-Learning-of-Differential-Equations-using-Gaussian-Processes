@@ -37,7 +37,7 @@ for d in dims:
 plt.figure(figsize=(6,4))
 plt.plot(dims, errors_slice, marker='o')
 
-plt.xlabel("Input dimension (d)")
+plt.xlabel("Dimension d")
 plt.ylabel("Mean Absolute Error on Slice")
 
 plt.yscale('log')   # log scale for error axis
